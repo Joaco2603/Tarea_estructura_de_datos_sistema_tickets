@@ -1,8 +1,11 @@
 package presentation;
 
 import entities.Ticket;
-import utils.LinkedList;
+import utils.LinkedList.LinkedList;
+import utils.Queue.StaticQueue;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import java.util.PriorityQueue;
@@ -14,9 +17,14 @@ import java.util.Scanner;
 public class UI {
 
     // Required data structures
-    private static PriorityQueue<Ticket> pendingQueue = new PriorityQueue<>();
-    private static LinkedList resolvedList = new LinkedList();
-    private static Scanner scanner = new Scanner(System.in);
+    private static final PriorityQueue<Ticket> pendingQueue = new PriorityQueue<>();
+    private static final LinkedList resolvedList = new LinkedList();
+    private static final Scanner scanner = new Scanner(System.in);
+
+    // Weekend cap: límite diario de tickets en sábado/domingo
+    private static final int WEEKEND_CAPACITY = 10;
+    private static StaticQueue<Ticket> weekendCapQueue = new StaticQueue<>(WEEKEND_CAPACITY);
+    private static LocalDate lastCapDate = LocalDate.now();
 
     public static void main(String[] args) {
         boolean salir = false;
@@ -52,6 +60,57 @@ public class UI {
         scanner.close();
     }
 
+    // ──────────────────────────────────────────────
+    //  Lógica de control por día de la semana
+    // ──────────────────────────────────────────────
+
+    private static boolean esFinDeSemana() {
+        DayOfWeek dia = LocalDate.now().getDayOfWeek();
+        return dia == DayOfWeek.SATURDAY || dia == DayOfWeek.SUNDAY;
+    }
+
+    /**
+     * Resetea el contador de fin de semana si cambió el día.
+     * Así cada sábado/domingo arranca con cupo fresco.
+     */
+    private static void resetWeekendCapSiEsNecesario() {
+        LocalDate hoy = LocalDate.now();
+        if (!hoy.equals(lastCapDate)) {
+            weekendCapQueue = new StaticQueue<>(WEEKEND_CAPACITY);
+            lastCapDate = hoy;
+        }
+    }
+
+    /**
+     * Agrega un ticket a la cola de pendientes respetando
+     * el límite diario de fin de semana.
+     * <p>
+     *   LUN–VIE: se agrega directamente al PriorityQueue.
+     *   SÁB–DOM: se valida el cupo diario antes de agregar.
+     * </p>
+     */
+    private static void agregarTicketEnCola(Ticket ticket) {
+        if (esFinDeSemana()) {
+            resetWeekendCapSiEsNecesario();
+
+            if (weekendCapQueue.isFull()) {
+                System.out.println("\n═══════════════════════════════════════════════════════");
+                System.out.println("   LÍMITE DE ATENCIÓN DE FIN DE SEMANA ALCANZADO.");
+                System.out.println("   No se atenderán más tickets hoy.");
+                System.out.println("   Vuelva el lunes a partir de las 00:00 hrs.");
+                System.out.println("═══════════════════════════════════════════════════════");
+                return;
+            }
+
+            weekendCapQueue.add(ticket);
+        }
+
+        pendingQueue.add(ticket);
+        System.out.println("\n¡Ticket creado exitosamente! Su número de seguimiento es el ID: " + ticket.getId());
+    }
+
+    // ──────────────────────────────────────────────
+
     /**
      * Interactive logic for User Menu.
      */
@@ -75,15 +134,14 @@ public class UI {
                     int priority;
                     try {
                         priority = Integer.parseInt(scanner.nextLine());
-                        if(priority < 1 || priority > 3) priority = 3; // Default
+                        if (priority < 1 || priority > 3) priority = 3; // Default
                     } catch (NumberFormatException e) {
                         System.out.println("Prioridad inválida. Se asignará prioridad Baja (3).");
                         priority = 3;
                     }
 
                     Ticket newTicket = new Ticket(description, fullName, priority);
-                    pendingQueue.add(newTicket);
-                    System.out.println("\n¡Ticket creado exitosamente! Su número de seguimiento es el ID: " + newTicket.getId());
+                    agregarTicketEnCola(newTicket);
                     break;
 
                 case "2":
@@ -105,19 +163,17 @@ public class UI {
                         Ticket pendingTicket = null;
 
                         for (Ticket ticket : pendingQueue) {
-                            if (ticket.getId() == idToSearch) { // Ajusta .getId() según el método de tu clase Ticket
+                            if (ticket.getId() == idToSearch) {
                                 pendingTicket = ticket;
-                                break; // Ya lo encontramos, salimos del bucle
+                                break;
                             }
                         }
 
-                        // 3. Evaluar el resultado de la búsqueda en pendientes
                         if (pendingTicket != null) {
                             System.out.println("\n--- Ticket Encontrado (PENDIENTE) ---");
                             System.out.println("El ticket aún no ha sido resuelto.");
                             System.out.println(pendingTicket);
-                        } else {
-                            // 4. Si no está en ningún lado
+                        } else if (foundTicket == null) {
                             System.out.println("Error: El registro con ID " + idToSearch + " no existe.");
                         }
 
@@ -174,7 +230,7 @@ public class UI {
                     break;
 
                 case "2":
-                    Ticket ticketToResolve = pendingQueue.poll(); // Extracts ticket from front
+                    Ticket ticketToResolve = pendingQueue.poll();
                     if (ticketToResolve != null) {
                         ticketToResolve.setResolutionDate(LocalDateTime.now());
                         resolvedList.add(ticketToResolve);

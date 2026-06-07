@@ -1,4 +1,4 @@
-package utils;
+package utils.LinkedList;
 
 public class NodeList<T> {
     private T data;

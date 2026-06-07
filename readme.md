@@ -27,3 +27,4 @@ java -cp out Main
 - Menú de usuario para crear tickets y buscar tickets resueltos por ID.
 - Menú de administrador para ver el ticket al frente de la cola y resolverlo.
 - Cada ticket guarda descripción, nombre completo, fecha de creación y fecha de resolución.
+# Tarea_estructura_de_datos_sistema_tickets
